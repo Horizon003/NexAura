@@ -1,0 +1,28 @@
+# Netlify configuration for NEXAURA
+#
+# The app is a single HTML file with a hash router, so no SPA rewrite is
+# strictly required — but this makes any stray path land on the app instead
+# of a 404, and adds the security headers a public site should send.
+
+[build]
+  publish = "."
+
+# any unknown path -> the app
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# never cache the app shell, so players always get the newest build
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

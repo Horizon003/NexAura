@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ur" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Files — Download Center</title>
+<meta name="description" content="Nexaura project ki tamam website files download karein — single files ya poora ZIP.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .glow { box-shadow: 0 0 40px -12px rgba(99,102,241,.55); }
+  .row-anim { transition: background-color .2s ease, transform .2s ease; }
+  .row-anim:hover { transform: translateY(-1px); }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <header id="page-header" class="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-5 py-8">
+      <p class="text-indigo-400 text-xs font-semibold tracking-[0.2em] uppercase mb-2">
+        <i class="fa-solid fa-cloud-arrow-down mr-2"></i>Download Center
+      </p>
+      <h1 class="text-3xl sm:text-4xl font-extrabold leading-tight">Website Files Download</h1>
+      <p class="mt-3 text-slate-400 max-w-2xl text-sm sm:text-base">
+        Yahan se poori website ki tamam files download karein. Aap chahein to <strong class="text-slate-200">ek ek file</strong> le lein,
+        ya <strong class="text-slate-200">"Download All (ZIP)"</strong> dabaa kar sab kuch ek ZIP mein hasil karein —
+        phir usay apni AI Drive ya computer par upload / save kar lein.
+      </p>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 py-8">
+
+    <!-- Action bar -->
+    <section id="actions-section" class="mb-8">
+      <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <button id="download-all-btn"
+          class="glow inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-5 py-3 font-semibold text-white transition disabled:opacity-60 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-file-zipper"></i>
+          <span id="download-all-label">Download All (ZIP)</span>
+        </button>
+        <button id="download-each-btn"
+          class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 hover:border-slate-500 bg-slate-900 px-5 py-3 font-semibold text-slate-200 transition disabled:opacity-60">
+          <i class="fa-solid fa-layer-group"></i>
+          Har File Alag Alag
+        </button>
+        <span id="status-text" class="text-sm text-slate-400 sm:ml-2" role="status" aria-live="polite">Files check ho rahi hain…</span>
+      </div>
+      <div id="progress-wrap" class="hidden mt-4 h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+        <div id="progress-bar" class="h-full w-0 bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-all duration-300"></div>
+      </div>
+    </section>
+
+    <!-- File list -->
+    <section id="files-section" aria-labelledby="files-heading">
+      <h2 id="files-heading" class="text-lg font-bold mb-4 flex items-center gap-2">
+        <i class="fa-regular fa-folder-open text-indigo-400"></i> Project Files
+      </h2>
+      <ul id="file-list" class="space-y-3"></ul>
+    </section>
+
+    <!-- Help -->
+    <section id="help-section" class="mt-12 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+      <h2 class="text-base font-bold mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-circle-info text-indigo-400"></i> AI Drive mein kaise daalein?
+      </h2>
+      <ol class="list-decimal list-inside space-y-2 text-sm text-slate-400">
+        <li><strong class="text-slate-200">Download All (ZIP)</strong> par click karein — saari files ek ZIP mein download ho jayengi.</li>
+        <li>Apni AI Drive kholein aur wahan <strong class="text-slate-200">Upload</strong> se ye ZIP (ya alag files) upload kar dein.</li>
+        <li>ZIP ko wahan extract karne se original folder structure (<code class="text-indigo-300">supabase/nexaura-schema.sql</code>) wapis mil jayega.</li>
+      </ol>
+      <p class="mt-4 text-xs text-slate-500">
+        Note: Agar koi file "Not available" dikhaye to iska matlab hai ke static host us file ko serve nahi karta
+        (jaise dot-files, misaal <code>.gitignore</code>). Aisi file project ke file explorer ya Git repo se hasil ki ja sakti hai.
+      </p>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-800 mt-10">
+    <div class="max-w-5xl mx-auto px-5 py-6 text-xs text-slate-500">
+      Download Center · files seedha isi site se fetch ho kar browser mein save hoti hain.
+    </div>
+  </footer>
+
+  <script src="js/downloads.js"></script>
+</body>
+</html>
