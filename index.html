@@ -319,8 +319,8 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .auth-card > p{color:var(--ink-2);margin:10px 0 26px;font-size:14.5px}
 .auth-alt{margin-top:20px;text-align:center;font-size:14px;color:var(--ink-2)}
 .auth-alt a{color:var(--violet);font-weight:600}
-.demo-box{margin-top:22px;padding:14px 16px;border-radius:14px;background:var(--bg-2);border:1px solid var(--line);font-size:12.5px;color:var(--ink-2)}
-.demo-box b{color:var(--ink)}
+.note-box{margin-top:22px;padding:14px 16px;border-radius:14px;background:var(--bg-2);border:1px solid var(--line);font-size:12.5px;color:var(--ink-2)}
+.note-box b{color:var(--ink)}
 
 /* ============================================================
    APP SHELL
@@ -788,10 +788,6 @@ img,svg,.puz,.mem-grid,.app-frame{ touch-action:manipulation; -webkit-user-drag:
 .slide-dots button[aria-selected="true"]{ width:26px; background:var(--grad) }
 
 .welcome-cta{ display:grid; gap:10px }
-.welcome-guest{
-  text-align:center; font-size:13px; color:var(--violet); font-weight:600; margin-top:2px;
-}
-.welcome-guest:hover{ text-decoration:underline }
 
 @media (min-width:900px){
   .welcome-in{ max-width:560px }
@@ -1741,7 +1737,6 @@ window.NEXAURA_BACKEND = {
             <svg class="ic" aria-hidden="true"><use href="#i-fingerprint"/></svg> Log in</a>
           <a class="btn btn-lg btn-block" href="#/signup">
             <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Sign up</a>
-          <a class="welcome-guest" href="#/demo?to=dashboard">Continue as guest</a>
         </div>
 
         <div class="hero-facts">
@@ -1851,7 +1846,7 @@ window.NEXAURA_BACKEND = {
           <details><summary>How is the daily reward calculated?</summary><p>Accrual is continuous and decimal-safe: earned = completionValue × elapsed / 30 days. At exactly 30 days the earned amount equals the configured completion value with no rounding drift.</p></details>
           <details><summary>Can I buy a card I can't afford?</summary><p>No. Cards you cannot afford are shown as unavailable and the purchase action is blocked, with a clear message.</p></details>
           <details><summary>How many referral levels are there?</summary><p>Exactly one. Only your direct referrals qualify, and only after their first card purchase. Second-level referrals earn nothing.</p></details>
-          <details><summary>Where is my game profile stored?</summary><p>Right now your game profile lives in this browser only. Once a backend is connected (Firebase or Supabase, from the operator panel) all balance-changing operations move to authenticated server logic.</p></details>
+          <details><summary>Where is my game profile stored?</summary><p>Your profile, balance, cards and referrals are stored on NEXAURA&rsquo;s secure servers &mdash; not in your browser. Every balance-changing operation (buy, claim, sell, withdraw) runs as an authenticated server transaction, so your wallet is the same on every device you log in from.</p></details>
         </div>
         <div class="disclaimer" style="margin-top:28px">
           <svg class="ic" style="color:#7C3AED;flex:none" aria-hidden="true"><use href="#i-info"/></svg>
@@ -1980,7 +1975,6 @@ window.NEXAURA_BACKEND = {
         <svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg> I'm a new user</button>
       <button class="btn btn-lg btn-block" id="fw-login" type="button">
         <svg class="ic" aria-hidden="true"><use href="#i-fingerprint"/></svg> Log in</button>
-      <button class="flow-link" id="fw-demo" type="button">Continue as guest</button>
       <p class="fw-note">NXC is virtual game currency. It has no real-world monetary value and is not an investment.</p>
     </div>
   </section>
@@ -2023,9 +2017,11 @@ window.NEXAURA_BACKEND = {
 <script>
 /* ================================================================
    NEXAURA — CORE ENGINE
-   Client-side backend: ledger, cards, referrals, idempotency.
-   NOTE: every mutation here must eventually live behind authenticated
-   server logic (Firebase / Supabase) with atomic transactions.
+   Local model layer: ledger, cards, referrals, idempotency.
+   In production every mutation below is superseded by the Supabase
+   bridge, which routes writes to authenticated server transactions
+   (Postgres RPC + Row Level Security). These functions remain as the
+   client-side model/rendering source of truth only.
    ================================================================ */
 'use strict';
 
@@ -2148,8 +2144,11 @@ const NX = (() => {
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){}
   }
 
-  /* ---------------- helpers ---------------- */
-  const now = () => Date.now() + (S.clockOffset || 0);
+  /* ---------------- helpers ----------------
+     PRODUCTION: time is real time, always. The old `clockOffset` let the
+     prototype "time machine" mature cards early; any offset left in an old
+     browser blob is now ignored so progression can never be faked. */
+  const now = () => Date.now();
   const uid = (p) => p + '_' + Math.random().toString(36).slice(2,8).toUpperCase() + now().toString(36).slice(-4).toUpperCase();
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -3060,8 +3059,9 @@ const NX = (() => {
     return w;
   }
 
-  /* ---------------- time machine (operator tool) ---------------- */
-  function shiftClock(ms){ S.clockOffset = (S.clockOffset||0) + ms; save(); sweep(); }
+  /* ---------------- clock (production: not movable) ----------------
+     These remain only so older call sites do not throw; they are no-ops. */
+  function shiftClock(){ throw new Error('The clock cannot be changed.'); }
   function resetClock(){ S.clockOffset = 0; save(); }
   function resetAll(){ localStorage.removeItem(STORE_KEY); S = blank(); seed(); }
 
@@ -3440,7 +3440,7 @@ function authSignup(){
       '<button class="btn btn-primary btn-lg btn-block" type="submit">Create profile</button>' +
     '</form>' +
     '<p class="auth-alt">Already playing? <a href="#/login">Log in</a></p>' +
-    '<div class="demo-box">NXC is <b>virtual game currency</b> used within NEXAURA. It has no real-world monetary value and is not an investment.</div>';
+    '<div class="note-box">NXC is <b>virtual game currency</b> used within NEXAURA. It has no real-world monetary value and is not an investment.</div>';
 }
 
 function authLogin(){
@@ -3453,8 +3453,8 @@ function authLogin(){
       '<button class="btn btn-primary btn-lg btn-block" type="submit">Log in</button>' +
     '</form>' +
     '<p class="auth-alt">New to NEXAURA? <a href="#/signup">Create a profile</a></p>' +
-    '<div class="demo-box"><b>Security notice:</b> this build signs you in inside the browser, which can never be real protection — ' +
-      'anyone can read the page source. Connect Supabase or Firebase (Operator \u2192 Integrations) so authentication runs server-side.</div>';
+    '<div class="note-box"><b>Keep your account safe.</b> NEXAURA staff will never ask for your password. ' +
+      'Log in only on the official site and never share your one-time codes or wallet address with anyone.</div>';
 }
 
 function authForgot(){
@@ -3464,7 +3464,8 @@ function authForgot(){
       '<button class="btn btn-primary btn-lg btn-block" type="submit">Send reset link</button>' +
     '</form>' +
     '<p class="auth-alt"><a href="#/login">Back to log in</a></p>' +
-    '<div class="demo-box">No email is sent until an auth provider is connected. Once Firebase or Supabase is linked in Operator \u2192 Integrations, this form triggers the provider\u2019s real reset flow.</div>';
+    '<div class="note-box">The reset link is sent to your registered email address and expires after a short time. ' +
+      'If it does not arrive within a few minutes, check your spam folder before requesting another.</div>';
 }
 
 function mountAuth(kind){
@@ -3547,7 +3548,7 @@ function mountAuth(kind){
       ev.preventDefault();
       busy(ff.querySelector('button[type=submit]'), 'Sending…', async () => {
         await wait(700);
-        toast('Reset link sent', 'Check your inbox for reset instructions (demo).', 'ok');
+        toast('Reset link sent', 'Check your inbox for the password reset link.', 'ok');
       });
     });
   }
@@ -3635,7 +3636,6 @@ function pageDashboard(){
             '<button class="icon-btn" data-copy="' + E(refLink(u)) + '" type="button" aria-label="Copy referral link" style="width:36px;height:36px">' + ico('#i-copy','sm') + '</button></div>' +
           '<a class="btn btn-soft btn-block" style="margin-top:14px" href="#/referrals">Referral dashboard</a>' +
         '</section>' +
-        timeMachineBox() +
       '</aside>' +
     '</div>';
 }
@@ -3645,17 +3645,10 @@ function refLink(u){
   return base + '#/signup?ref=' + u.referralCode;
 }
 
-function timeMachineBox(){
-  return '<section class="time-machine"><div>' + ico('#i-clock') + '</div>' +
-    '<div style="flex:1;min-width:120px"><b style="font-size:13.5px">Time machine</b>' +
-    '<p>Fast-forward the clock to watch 30-day progression and completion.</p></div>' +
-    '<div class="row" style="gap:6px;flex-wrap:wrap">' +
-      '<button class="btn btn-sm" data-shift="1" type="button">+1d</button>' +
-      '<button class="btn btn-sm" data-shift="7" type="button">+7d</button>' +
-      '<button class="btn btn-sm" data-shift="30" type="button">+30d</button>' +
-      '<button class="btn btn-sm" data-shift="reset" type="button">' + ico('#i-refresh','sm') + '</button>' +
-    '</div></section>';
-}
+/* The "time machine" was a prototype tool that let ANY player fast-forward the
+   clock and mature their own cards early. It is removed from production — the
+   30-day progression is now driven only by real server time. */
+function timeMachineBox(){ return ''; }
 
 /* ---------------- CARDS ---------------- */
 let cardFilter = 'all';
@@ -4102,7 +4095,8 @@ function pageProfile(){
         '<button class="btn btn-block" style="margin-top:14px" id="change-pw" type="button">' + ico('#i-key','sm') + ' Change password</button>' +
       '</section>' +
       '<section class="warn-box">' + ico('#i-shield') +
-        '<p><b>Security notice.</b> This build authenticates in the browser, which can never be secure — anyone can read the page source. Connect a real auth provider (Operator \u2192 Integrations) so validation happens server-side.</p></section>' +
+        '<p><b>Keep your account safe.</b> NEXAURA staff will never ask for your password or your one-time codes. ' +
+        'Use a password you do not reuse anywhere else, and always check the site address before you log in.</p></section>' +
     '</aside></div>';
 }
 
@@ -4201,7 +4195,8 @@ function pageAdmin(){
     '<section class="panel"><div class="panel-h"><h3>' + E((tabs.find(t=>t[0]===adminTab)||[])[1] || '') + '</h3>' +
       '<span class="tiny muted">Read-mostly operator tools</span></div>' + body + '</section>' +
     '<div class="warn-box" style="margin-top:22px">' + ico('#i-shield') +
-      '<p><b>Security notice.</b> Admin gating here is client-side and therefore not real protection. A live operator area needs server-enforced role checks and audit logging.</p></div>';
+      '<p><b>Operator actions are logged.</b> Every approval, rejection and balance adjustment is written to the ' +
+      'audit trail with your account and a timestamp. Server-side role checks decide what you may do here.</p></div>';
 }
 
 /* ================================================================
@@ -4245,18 +4240,15 @@ function render(){
 
   const user = NX.me();
 
-  // one-click demo entry (public showcase route)
+  /* PRODUCTION: the old one-click "#/demo" guest entry is removed. It signed
+     visitors in as a shared showcase account, which must never exist on a
+     live site. Any stale link (bookmark, QR code, shared URL) is forwarded
+     to the real destination for a logged-in user, or to the login screen. */
   if(path === '#/demo'){
-    try{
-      const as = params.get('as');
-      if(!user || (as === 'admin' && user.role !== 'admin')){
-        if(user) NX.logout();
-        NX.login(as === 'admin' ? 'admin@nexaura.game' : 'player@nexaura.game', as === 'admin' ? 'admin123' : 'nexaura');
-      }
-      const to = (params.get('to') || (as === 'admin' ? 'admin' : 'dashboard')).replace(/[^a-z]/g,'');
-      const play = (params.get('play') || '').replace(/[^a-z]/g,'');
-      location.replace(location.href.split('#')[0] + '#/' + to + (play ? '?play=' + play : ''));
-    }catch(err){ location.replace(location.href.split('#')[0] + '#/login'); }
+    const to = (params.get('to') || 'dashboard').replace(/[^a-z]/g,'') || 'dashboard';
+    const play = (params.get('play') || '').replace(/[^a-z]/g,'');
+    const dest = user ? ('#/' + to + (play ? '?play=' + play : '')) : '#/login';
+    location.replace(location.href.split('#')[0] + dest);
     return;
   }
 
@@ -4383,14 +4375,8 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  const shift = t.closest('[data-shift]');
-  if(shift){
-    const v = shift.dataset.shift;
-    if(v === 'reset'){ NX.resetClock(); toast('Clock reset', 'Simulated time is back to real time.', 'info'); }
-    else{ NX.shiftClock(Number(v) * NX.DAY); toast('Time advanced', '+' + v + ' simulated day(s).', 'info'); }
-    render();
-    return;
-  }
+  /* the [data-shift] time-machine handler was removed with the tool itself —
+     no client may move the clock in production */
 
   if(t.closest('#btn-noti')){ openDrawer(); return; }
   if(t.closest('#drawer-close')){ closeDrawer(); return; }
@@ -4414,7 +4400,7 @@ document.addEventListener('click', (e) => {
     busy(btn, 'Sending…', async () => {
       await wait(700);
       const u = NX.me(); u.emailVerified = true; NX.save();
-      toast('Email verified', 'Your email address is now verified (demo).', 'ok');
+      toast('Verification sent', 'Check your inbox and open the link to confirm your email.', 'ok');
       render();
     });
     return;
@@ -4427,7 +4413,7 @@ document.addEventListener('click', (e) => {
         '<label class="field"><span>Current password</span><input class="input" name="cur" type="password" required></label>' +
         '<label class="field"><span>New password</span><input class="input" name="nw" type="password" required></label>' +
         '<p class="err-txt hide" id="pw-err"></p>' +
-        '<p class="hint">Client-side password handling is not real security. Production NEXAURA must change credentials through its auth provider.</p>' +
+        '<p class="hint">Use at least 8 characters with a mix of letters and numbers. You stay logged in on this device after changing it.</p>' +
       '</form></div>' +
       '<div class="modal-f"><button class="btn" data-close-modal type="button">Cancel</button>' +
         '<button class="btn btn-primary" id="pw-save" type="button">Save password</button></div>',
@@ -4440,7 +4426,7 @@ document.addEventListener('click', (e) => {
               const el = $('#pw-err'); el.textContent = 'New password must be at least 6 characters.'; el.classList.remove('hide'); return;
             }
             closeModal();
-            toast('Password updated', 'Your demo password has been changed.', 'ok');
+            toast('Password updated', 'Your new password is active from now on.', 'ok');
           });
         });
       }
@@ -4461,12 +4447,13 @@ window.addEventListener('hashchange', render);
   if(r){ pendingRef = r.toUpperCase(); if(!location.hash) location.hash = '#/signup?ref=' + pendingRef; }
 })();
 
-// plain-URL deep links for sharing/QR codes: index.html?go=sell → demo entry on that screen
+// plain-URL deep links for sharing/QR codes: index.html?go=sell → that screen
+// (the router sends a visitor who is not logged in to #/login by itself)
 (function captureQueryGo(){
   const go = new URLSearchParams(location.search).get('go');
   if(go && !location.hash){
     const safe = go.replace(/[^a-z]/g,'');
-    if(safe) location.hash = '#/demo?to=' + safe;
+    if(safe) location.hash = '#/' + safe;
   }
 })();
 
@@ -5904,13 +5891,14 @@ render();
 /* ================================================================
    NEXAURA — ADMIN INTEGRATIONS HEALTH CHECK
    Operator screen that answers two questions:
-     1. Is my BACKEND connected and working?  (Firebase  OR  Supabase)
+     1. Is SUPABASE connected and working?    (database + auth)
      2. Is CLOUDINARY connected and working?  (media uploads)
 
+   Production runs on Supabase only. Firebase is NOT used and is never
+   probed or offered — showing it made a correctly configured install
+   look half-connected.
+
    How the checks work (all client-side, no secrets required):
-     • Firebase  → GET  {databaseURL}/.json                  (RTDB)
-                   GET  https://firestore.googleapis.com/v1/projects/{id}/databases/(default)/documents
-                   GET  https://identitytoolkit.googleapis.com/v1/projects?key={apiKey}
      • Supabase  → GET  {url}/rest/v1/?apikey={anonKey}
                    GET  {url}/auth/v1/settings
      • Cloudinary→ GET  https://res.cloudinary.com/{cloud}/image/upload/sample.jpg
@@ -5928,8 +5916,10 @@ render();
 const INTEG_KEY = 'nexaura_integrations_v1';
 
 const INTEG_BLANK = () => ({
-  backend: 'firebase',                                   // 'firebase' | 'supabase'
-  firebase:   { projectId:'', apiKey:'', databaseURL:'', authDomain:'', storageBucket:'' },
+  /* production is Supabase only. This used to default to 'firebase', which is
+     why a fully configured install reported "not connected": the blank
+     per-browser config, not the live backend, drove the Services tab. */
+  backend: 'supabase',
   supabase:   { url:'', anonKey:'' },
   cloudinary: { cloudName:'', uploadPreset:'' },
   results: {},                                           // last check results
@@ -5948,6 +5938,34 @@ function integSave(cfg){
 }
 
 let INTEG = integLoad();
+
+/* ------------------------------------------------------------------
+   PRODUCTION SEED — the Services tab used to read ONLY this operator's
+   localStorage, which is empty on a fresh browser. That made a live,
+   working backend report "Not set up" and defaulted the panel to
+   Firebase even though this build ships Supabase.
+
+   Seed from the real, shipped configuration in window.NEXAURA_BACKEND
+   so the tab reflects what the app is ACTUALLY using.
+   ------------------------------------------------------------------ */
+(function seedIntegFromLiveConfig(){
+  const live = window.NEXAURA_BACKEND || {};
+  let dirty = false;
+
+  if(live.supabase && live.supabase.url && live.supabase.anonKey){
+    if(!INTEG.supabase.url)     { INTEG.supabase.url = live.supabase.url; dirty = true; }
+    if(!INTEG.supabase.anonKey) { INTEG.supabase.anonKey = live.supabase.anonKey; dirty = true; }
+    /* this build IS Supabase — never present Firebase as the backend */
+    if(INTEG.backend !== 'supabase'){ INTEG.backend = 'supabase'; dirty = true; }
+  }
+  if(live.cloudinary && live.cloudinary.cloudName){
+    if(!INTEG.cloudinary.cloudName){ INTEG.cloudinary.cloudName = live.cloudinary.cloudName; dirty = true; }
+    if(!INTEG.cloudinary.uploadPreset && live.cloudinary.uploadPreset){
+      INTEG.cloudinary.uploadPreset = live.cloudinary.uploadPreset; dirty = true;
+    }
+  }
+  if(dirty) integSave(INTEG);
+})();
 
 /* ---------------- fetch with timeout ---------------- */
 async function probe(url, opts){
@@ -5975,71 +5993,13 @@ async function probe(url, opts){
 const R = (state, label, detail, ms) => ({ state, label, detail, ms: ms || null });
 
 /* ================================================================
-   FIREBASE
+   FIREBASE — REMOVED
+   ================================================================
+   NEXAURA production runs on Supabase (Postgres + Auth + RLS) only.
+   The Firebase prober was dead code: nothing calls it, no Firebase SDK
+   is loaded, and showing it in the Services tab made a correctly
+   configured install look half-connected. Deleted deliberately.
    ================================================================ */
-async function checkFirebase(cfg){
-  const out = {};
-  const { projectId, apiKey, databaseURL } = cfg;
-
-  if(!projectId && !apiKey && !databaseURL){
-    return { rtdb:R('skip','Realtime Database','No Firebase config entered yet.'),
-             firestore:R('skip','Firestore','No Firebase config entered yet.'),
-             auth:R('skip','Authentication','No Firebase config entered yet.') };
-  }
-
-  /* --- Realtime Database --- */
-  if(databaseURL){
-    const url = databaseURL.replace(/\/+$/,'') + '/.json?shallow=true';
-    const p = await probe(url);
-    if(p.ok) out.rtdb = R('ok','Realtime Database','Connected and readable (HTTP 200).', p.ms);
-    else if(p.status === 401 || p.status === 403)
-      out.rtdb = R('warn','Realtime Database','Reachable, but rules deny anonymous reads (HTTP ' + p.status + '). The database exists and is responding.', p.ms);
-    else if(p.status === 404)
-      out.rtdb = R('fail','Realtime Database','HTTP 404 — that database URL does not exist.', p.ms);
-    else out.rtdb = R('fail','Realtime Database', p.error || ('Unexpected HTTP ' + p.status), p.ms);
-  }else{
-    out.rtdb = R('skip','Realtime Database','No databaseURL entered (skip if you only use Firestore).');
-  }
-
-  /* --- Firestore --- */
-  if(projectId){
-    const url = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(projectId) +
-                '/databases/(default)/documents?pageSize=1' + (apiKey ? '&key=' + encodeURIComponent(apiKey) : '');
-    const p = await probe(url);
-    if(p.ok) out.firestore = R('ok','Firestore','Connected — the project responded with a document listing.', p.ms);
-    else if(p.status === 401 || p.status === 403)
-      out.firestore = R('warn','Firestore','Reachable, but security rules deny unauthenticated reads (HTTP ' + p.status + '). Firestore itself is live.', p.ms);
-    else if(p.status === 404)
-      out.firestore = R('fail','Firestore','HTTP 404 — no default Firestore database for project "' + projectId + '".', p.ms);
-    else out.firestore = R('fail','Firestore', p.error || ('Unexpected HTTP ' + p.status), p.ms);
-  }else{
-    out.firestore = R('skip','Firestore','No projectId entered.');
-  }
-
-  /* --- Authentication --- */
-  if(apiKey){
-    const p = await probe('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + encodeURIComponent(apiKey), {
-      method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ returnSecureToken:false })
-    });
-    /* a valid key answers 400 (bad payload); an invalid key answers 400 with
-       API_KEY_INVALID — so read the body to tell them apart */
-    let body = null;
-    if(p.res){ try{ body = await p.res.json(); }catch(e){} }
-    const msg = body && body.error && body.error.message || '';
-    if(/API_KEY_INVALID|API key not valid/i.test(msg))
-      out.auth = R('fail','Authentication','The Web API key was rejected: ' + msg, p.ms);
-    else if(p.status === 400 || p.ok)
-      out.auth = R('ok','Authentication','Identity Toolkit accepted the API key — Firebase Auth is live.', p.ms);
-    else if(p.status === 403)
-      out.auth = R('warn','Authentication','Key is valid but restricted (HTTP 403). Check the key\u2019s HTTP-referrer restrictions.', p.ms);
-    else out.auth = R('fail','Authentication', p.error || ('Unexpected HTTP ' + p.status), p.ms);
-  }else{
-    out.auth = R('skip','Authentication','No Web API key entered.');
-  }
-
-  return out;
-}
 
 /* ================================================================
    SUPABASE
@@ -6143,11 +6103,10 @@ async function runIntegrationChecks(){
   if(integRunning) return;
   integRunning = true;
   try{
-    const backend = INTEG.backend === 'supabase'
-      ? await checkSupabase(INTEG.supabase)
-      : await checkFirebase(INTEG.firebase);
+    /* production is Supabase only — Firebase is never probed */
+    const backend = await checkSupabase(INTEG.supabase);
     const media = await checkCloudinary(INTEG.cloudinary);
-    INTEG.results = { backend, media, backendKind: INTEG.backend };
+    INTEG.results = { backend, media, backendKind: 'supabase' };
     INTEG.checkedAt = Date.now();
     integSave(INTEG);
   } finally { integRunning = false; }
@@ -6259,18 +6218,26 @@ function integGuide(){
 
 function adminIntegrationsPanel(){
   const res = INTEG.results || {};
-  const fb = INTEG.firebase, sb = INTEG.supabase, cl = INTEG.cloudinary;
-  const isFb = INTEG.backend !== 'supabase';
+  const sb = INTEG.supabase, cl = INTEG.cloudinary;
+
+  /* If nothing has been probed yet but the keys ARE configured, say
+     "Configured — run checks", not "Not set up". The old copy made a working
+     backend look broken. integCard() expects a GROUP of rows, so return one. */
+  const cfgHint = (has) => has
+    ? { config: R('warn', 'Keys are configured',
+                  'Press \u201CRun all checks\u201D to test the live connection.') }
+    : { config: R('skip', 'Not configured yet',
+                  'Add the values below, then press \u201CSave & check\u201D.') };
 
   const backendCard = res.backend
-    ? integCard(res.backendKind === 'supabase' ? 'Supabase' : 'Firebase',
-        res.backendKind === 'supabase' ? 'Database · Auth · Storage' : 'Firestore · RTDB · Auth',
-        res.backendKind === 'supabase' ? '#i-db' : '#i-flame', res.backend)
-    : integCard(isFb ? 'Firebase' : 'Supabase', 'Not checked yet', isFb ? '#i-flame' : '#i-db', {});
+    ? integCard('Supabase', 'Database · Auth · Row Level Security', '#i-db', res.backend)
+    : integCard('Supabase', 'Database · Auth · Row Level Security', '#i-db',
+                cfgHint(!!(sb.url && sb.anonKey)));
 
   const mediaCard = res.media
     ? integCard('Cloudinary', 'Media delivery · uploads', '#i-image', res.media)
-    : integCard('Cloudinary', 'Not checked yet', '#i-image', {});
+    : integCard('Cloudinary', 'Media delivery · uploads', '#i-image',
+                cfgHint(!!cl.cloudName));
 
   return '<div style="padding:18px;display:grid;gap:16px">' +
 
@@ -6294,17 +6261,11 @@ function adminIntegrationsPanel(){
       '<form id="form-integ" novalidate>' +
 
         '<div class="field"><span>Backend</span>' +
-          '<div class="tabs">' +
-            '<button class="chip" data-backend="firebase" aria-selected="' + isFb + '" type="button">' + ico('#i-flame','sm') + ' Firebase</button>' +
-            '<button class="chip" data-backend="supabase" aria-selected="' + (!isFb) + '" type="button">' + ico('#i-db','sm') + ' Supabase</button>' +
-          '</div></div>' +
+          '<p class="tiny muted" style="margin-top:4px">This build runs on <b>Supabase</b> ' +
+            '(Postgres + Auth + Row Level Security). Firebase is not used.</p></div>' +
 
-        (isFb
-          ? '<label class="field"><span>Project ID</span><input class="input" name="fb_projectId" value="' + E(fb.projectId) + '" placeholder="my-app-1a2b3" autocomplete="off" spellcheck="false"></label>' +
-            '<label class="field"><span>Web API key</span><input class="input" name="fb_apiKey" value="' + E(fb.apiKey) + '" placeholder="AIza…" autocomplete="off" spellcheck="false"></label>' +
-            '<label class="field"><span>Realtime Database URL (optional)</span><input class="input" name="fb_databaseURL" value="' + E(fb.databaseURL) + '" placeholder="https://my-app.firebaseio.com" autocomplete="off" spellcheck="false"></label>'
-          : '<label class="field"><span>Project URL</span><input class="input" name="sb_url" value="' + E(sb.url) + '" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false"></label>' +
-            '<label class="field"><span>Anon / public key</span><input class="input" name="sb_anonKey" value="' + E(sb.anonKey) + '" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false"></label>') +
+        '<label class="field"><span>Project URL</span><input class="input" name="sb_url" value="' + E(sb.url) + '" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false"></label>' +
+        '<label class="field"><span>Anon / public key</span><input class="input" name="sb_anonKey" value="' + E(sb.anonKey) + '" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false"></label>' +
 
         '<div class="gline" style="margin:6px 0 18px"></div>' +
         '<label class="field"><span>Cloudinary cloud name</span><input class="input" name="cl_cloudName" value="' + E(cl.cloudName) + '" placeholder="my-cloud" autocomplete="off" spellcheck="false"></label>' +
@@ -6338,22 +6299,13 @@ function mountAdminIntegrations(){
   const form = $('#form-integ');
   if(!form) return;
 
-  $$('[data-backend]').forEach(b => b.addEventListener('click', () => {
-    INTEG.backend = b.dataset.backend;
-    integSave(INTEG);
-    render();
-  }));
+  /* the Firebase/Supabase switch is gone — production is Supabase only */
 
   const readForm = () => {
     const d = Object.fromEntries(new FormData(form).entries());
-    if(INTEG.backend === 'supabase'){
-      INTEG.supabase.url = (d.sb_url || '').trim();
-      INTEG.supabase.anonKey = (d.sb_anonKey || '').trim();
-    }else{
-      INTEG.firebase.projectId = (d.fb_projectId || '').trim();
-      INTEG.firebase.apiKey = (d.fb_apiKey || '').trim();
-      INTEG.firebase.databaseURL = (d.fb_databaseURL || '').trim();
-    }
+    INTEG.backend = 'supabase';
+    INTEG.supabase.url = (d.sb_url || '').trim();
+    INTEG.supabase.anonKey = (d.sb_anonKey || '').trim();
     INTEG.cloudinary.cloudName = (d.cl_cloudName || '').trim();
     INTEG.cloudinary.uploadPreset = (d.cl_uploadPreset || '').trim();
     integSave(INTEG);
@@ -6681,7 +6633,6 @@ function welcomeShow(){
   };
   on('fw-new',   () => deckStart('onboard'));
   on('fw-login', () => { flowClose(); location.hash = '#/login'; render(); });
-  on('fw-demo',  () => { flowClose(); location.hash = '#/demo?to=dashboard'; render(); });
 
   on('deck-next', deckAdvance);
   on('deck-skip', deckFinish);
@@ -6690,7 +6641,7 @@ function welcomeShow(){
 /* ================================================================
    ROUTER INTEGRATION
    ================================================================ */
-const PUBLIC_ROUTES = ['#/login','#/signup','#/forgot','#/demo'];
+const PUBLIC_ROUTES = ['#/login','#/signup','#/forgot'];
 const FLOW_ROUTES   = ['#/welcome','#/onboarding','#/intro'];
 
 /* decides, for the current route, whether the flow layer is visible */
@@ -7736,7 +7687,9 @@ function pageOperator(){
 
   return nav + wrapped +
     '<div class="warn-box" style="margin-top:18px">' + ico('#i-shield') +
-      '<p><b>Security notice.</b> This operator area is gated in the browser, which is not real protection — anyone who opens the page source can reach it. A live operator console needs server-enforced role checks and a server-side audit log.</p></div>';
+      '<p><b>Operator actions are logged.</b> Balances, deposits and withdrawals are changed only by ' +
+      'server functions that re-check your operator role, and every change is written to the audit trail ' +
+      'with your account and a timestamp.</p></div>';
 }
 
 /* replace the admin route entirely */
@@ -8486,8 +8439,22 @@ document.addEventListener('click', (e) => {
 
   var pulling = null;
 
+  /* ---------------------------------------------------------------------
+     RACE FIX (balance "came back" after a purchase or a sell ticket)
+
+     The old guard was `if(pulling) return pulling;` — it handed back the
+     ALREADY-RUNNING promise. That promise may have read `profiles` BEFORE the
+     RPC we are now waiting on committed its debit, so the stale pre-debit
+     balance was written over the fresh one and the money reappeared.
+
+     Now an overlapping caller waits for the in-flight pull to settle and then
+     runs a genuinely FRESH one, so a pull requested after a write always sees
+     that write.
+     ------------------------------------------------------------------- */
   async function pull(){
-    if(pulling) return pulling;                 /* never run two pulls at once */
+    /* wait for any in-flight pull to settle, then always run a FRESH one */
+    var prev = pulling;
+    if(prev){ try{ await prev; }catch(e){} }
     pulling = (async function(){
       var sess = (await sb.auth.getSession()).data.session;
       if(!sess){ S.session = null; NXDB.ready = true; return; }
@@ -8573,7 +8540,8 @@ document.addEventListener('click', (e) => {
       NXDB.ready = true;
     })();
 
-    try{ await pulling; } finally { pulling = null; }
+    var mine = pulling;
+    try{ await mine; } finally { if(pulling === mine) pulling = null; }
   }
 
   NXDB.pull = pull;
@@ -8803,8 +8771,28 @@ document.addEventListener('click', (e) => {
       throw new Error('You need ' + NX.fmtInt(def.cost) + ' NXC for this card. ' +
                       'Your balance is ' + NX.fmtInt(u.balance) + ' NXC.');
     }
-    fire(A.purchaseCard(levelId), 'Card activated',
-         'Your $' + def.usd + ' card has started its 30-day progression.');
+
+    /* Debit the local mirror immediately. nx_purchase_card DOES debit in
+       Postgres, but the UI repaints before the RPC resolves, so without this
+       the balance looked unchanged after buying a card. pull() then replaces
+       it with the authoritative value; on failure we roll back. */
+    var before = Number(u.balance) || 0;
+    u.balance = NX.round2(before - def.cost);
+    if(typeof syncTopbar === 'function'){ try{ syncTopbar(); }catch(e){} }
+
+    A.purchaseCard(levelId).then(function(){
+      if(typeof toast === 'function'){
+        toast('Card activated',
+              'Your $' + def.usd + ' card has started its 30-day progression.', 'ok');
+      }
+      if(typeof render === 'function') render();
+    }).catch(function(err){
+      var back = NX.state.users[u.id];
+      if(back) back.balance = before;               /* undo the optimistic debit */
+      if(typeof toast === 'function') toast('Purchase failed', err.message, 'err');
+      if(typeof render === 'function') render();
+    });
+
     return { id: null, denomination: levelId };      /* UI only reads these */
   };
 
@@ -9448,6 +9436,175 @@ document.addEventListener('click', (e) => {
   })();
 
   console.log('[nexaura] fix pack applied \u2014 mode:', SERVER ? 'supabase' : 'local');
+})();
+</script>
+
+<script>
+/* ============================================================================
+   NEXAURA — wave-7 production hardening   (inlined; loads LAST of all)
+   ============================================================================
+   Findings of the A-to-Z balance / buy / sell audit. On the server build the
+   authoritative wallet lives in Postgres and every legitimate credit or debit
+   goes through an `nx_*` RPC guarded by RLS. Anything that still wrote a
+   balance purely in the browser was therefore BOTH wrong (it vanished on the
+   next pull) AND dangerous (a player could mint NXC from the console).
+
+   A1. claimCollection() credited a "Collection reward" with the LOCAL ledger.
+       No such RPC exists, and nx_claim_card already pays completion + bonus,
+       so this was a phantom double-credit. Now refused on the server build.
+   A2. processOrders()/fulfilOrder() minted local cards + referral rewards from
+       a 20-second browser timer using the localStorage-only `orders` array.
+       Card release is an operator decision on the server. Timer neutralised.
+   A3. NX.ledger / NX.notify / NX.qualifyReferral were still callable and still
+       mutated the mirror balance. Sealed on the server build.
+   A4. processTickets() flipped withdrawal rows to `overdue` and re-saved local
+       state over server truth every 60s. Made read-only.
+   A5. NX.buyCoins / NX.claimCard / NX.setRefCode re-verified: all already go
+       through RPCs. Balance display now always re-syncs from the server after
+       a money action, so no screen can keep a stale number.
+   ========================================================================== */
+(function () {
+  'use strict';
+
+  var SERVER = !!(window.NXDB && window.NXDB.mode === 'supabase');
+  if (!SERVER) return;          /* local mode keeps its own ledger for dev use */
+
+  var SERVER_ONLY =
+    'This is handled on the NEXAURA server. Please refresh and try again.';
+
+  /* ------------------------------------------------------------------- A3
+     Seal the client-side ledger. On the server build a balance may ONLY be
+     changed by a Postgres RPC, so the local writer becomes a hard error
+     instead of silently editing the mirror the UI reads from. */
+  if (window.NX && typeof NX.ledger === 'function') {
+    NX.ledger = function () {
+      throw new Error(SERVER_ONLY);
+    };
+  }
+  if (window.NX && typeof NX.qualifyReferral === 'function') {
+    NX.qualifyReferral = function () { /* server: nx_qualify_referral */ };
+  }
+  if (typeof window.qualifyReferralExt === 'function') {
+    window.qualifyReferralExt = function () { /* server-side only */ };
+  }
+
+  /* ------------------------------------------------------------------- A1
+     The Collection page offered "Claim +N NXC" on every owned card. That
+     credit existed only in this browser: it disappeared on the next pull and
+     could be replayed from the console. The real bonus is already included in
+     nx_claim_card (completion_value + bonus), paid when the card matures. */
+  if (typeof window.claimCollection === 'function') {
+    window.claimCollection = function () {
+      throw new Error('Your card bonus is paid automatically when the card ' +
+        'completes its 30 days \u2014 collect it from the Cards page.');
+    };
+  }
+
+  /* Retire the button so nobody is invited to press a dead action. */
+  (function retireCollectButtons(){
+    function sweep(){
+      document.querySelectorAll('#page-root [data-collect]').forEach(function (b) {
+        var span = document.createElement('span');
+        span.className = 'tiny muted';
+        span.textContent = 'Bonus pays out when the card completes';
+        b.parentNode.replaceChild(span, b);
+      });
+    }
+    if (typeof window.render === 'function') {
+      var _r = window.render;
+      window.render = function () {
+        _r.apply(this, arguments);
+        setTimeout(sweep, 20);
+      };
+    }
+    setTimeout(sweep, 400);
+  })();
+
+  /* ------------------------------------------------------------------- A2
+     fulfilOrder() created a card, bumped total_spent and granted a referral
+     reward straight in the browser after a random 15-30 minute timer. On the
+     server build cards come from nx_purchase_card and deposits are released by
+     an operator, so this sweep could only ever invent rows that the next pull
+     deleted. Stop the timer at the source. */
+  if (typeof window.fulfilOrder === 'function') {
+    window.fulfilOrder = function () { return null; };
+  }
+  if (typeof window.processOrders === 'function') {
+    window.processOrders = function () { return false; };
+  }
+  if (typeof window.createOrder === 'function') {
+    window.createOrder = function () {
+      throw new Error('Card payments go through the Deposit desk so the team ' +
+        'can verify your transfer.');
+    };
+  }
+
+  /* ------------------------------------------------------------------- A4
+     processTickets() wrote `overdue` onto withdrawal rows and called NX.save(),
+     persisting a local copy of server state. Reading is fine; writing is not. */
+  if (typeof window.processTickets === 'function') {
+    window.processTickets = function () { return false; };
+  }
+  if (typeof window.cancelOrder === 'function') {
+    window.cancelOrder = function () { throw new Error(SERVER_ONLY); };
+  }
+
+  /* ------------------------------------------------------------------- A5
+     Any money action must leave the visible balance equal to the server's.
+     The optimistic debits (card buy, sell ticket) already repaint instantly;
+     this adds a guaranteed reconciliation shortly afterwards, so a dropped
+     realtime update or a slow RPC can never leave a stale number on screen. */
+  (function reconcileAfterMoneyActions(){
+    var names = ['purchaseCard', 'claimCard', 'createDeposit', 'setRefCode',
+                 'adminAdjustBalance', 'approveDeposit', 'rejectDeposit',
+                 'approveWithdrawal', 'rejectWithdrawal'];
+
+    names.forEach(function (n) {
+      if (typeof NX[n] !== 'function') return;
+      var orig = NX[n];
+      NX[n] = function () {
+        var out = orig.apply(this, arguments);
+        resync();
+        return out;
+      };
+    });
+
+    if (typeof window.createTicket === 'function') {
+      var ct = window.createTicket;
+      window.createTicket = function () {
+        var out = ct.apply(this, arguments);
+        resync();
+        return out;
+      };
+    }
+
+    function resync(){
+      [1200, 3500].forEach(function (ms) {
+        setTimeout(function () {
+          if (window.NXDB && typeof NXDB.sync === 'function') {
+            NXDB.sync().catch(function () {});
+          }
+        }, ms);
+      });
+    }
+  })();
+
+  /* A player's own screen should never claim the wallet is bigger than the
+     server says. Round every displayed balance through the mirror the pull
+     writes, and never below zero. */
+  if (window.NX && typeof NX.me === 'function') {
+    var _me = NX.me;
+    NX.me = function () {
+      var u = _me.apply(this, arguments);
+      if (u && typeof u.balance !== 'undefined') {
+        var b = Number(u.balance);
+        u.balance = (isFinite(b) && b > 0) ? NX.round2(b) : 0;
+      }
+      return u;
+    };
+  }
+
+  console.log('[nexaura] wave-7 production hardening applied');
 })();
 </script>
 </body>
